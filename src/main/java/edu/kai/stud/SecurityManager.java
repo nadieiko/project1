@@ -16,11 +16,11 @@ public class SecurityManager {
 
     static {
         // Ініціалізація рівнів доступу користувачів
-        userLevels.put("Boyko_1", SecurityLevel.LOW);
-        userLevels.put("Boyko_2", SecurityLevel.MEDIUM);
-        userLevels.put("Boyko_3", SecurityLevel.MEDIUM);
-        userLevels.put("Boyko_4", SecurityLevel.HIGH);
-        userLevels.put("Boyko_5", SecurityLevel.ADMIN);
+        userLevels.put("Boyko_1", SecurityLevel.NOT_SECRET);
+        userLevels.put("Boyko_2", SecurityLevel.FOR_SERVICE_USE);
+        userLevels.put("Boyko_3", SecurityLevel.SECRET);
+        userLevels.put("Boyko_4", SecurityLevel.TOP_SECRET);
+        userLevels.put("Boyko_5", SecurityLevel.SPECIAL_IMPORTANCE);
 
         // Ініціалізація ресурсів та їх рівнів безпеки
         initializeResources();
@@ -28,25 +28,51 @@ public class SecurityManager {
 
     private static void initializeResources() {
         resources.put("file1.txt", new Resource("file1.txt", 
-            Paths.get(DATA_DIR, "file1.txt"), SecurityLevel.LOW, Resource.ResourceType.TEXT_FILE));
+            Paths.get(DATA_DIR, "file1.txt"), SecurityLevel.NOT_SECRET, Resource.ResourceType.TEXT_FILE));
         resources.put("file2.txt", new Resource("file2.txt", 
-            Paths.get(DATA_DIR, "file2.txt"), SecurityLevel.MEDIUM, Resource.ResourceType.TEXT_FILE));
+            Paths.get(DATA_DIR, "file2.txt"), SecurityLevel.FOR_SERVICE_USE, Resource.ResourceType.TEXT_FILE));
         resources.put("file3.txt", new Resource("file3.txt", 
-            Paths.get(DATA_DIR, "file3.txt"), SecurityLevel.HIGH, Resource.ResourceType.TEXT_FILE));
+            Paths.get(DATA_DIR, "file3.txt"), SecurityLevel.SECRET, Resource.ResourceType.TEXT_FILE));
         resources.put("file4.exe", new Resource("file4.exe", 
-            Paths.get(DATA_DIR, "file4.exe"), SecurityLevel.HIGH, Resource.ResourceType.EXECUTABLE));
+            Paths.get(DATA_DIR, "file4.exe"), SecurityLevel.TOP_SECRET, Resource.ResourceType.EXECUTABLE));
         resources.put("file5.jpg", new Resource("file5.jpg", 
-            Paths.get(DATA_DIR, "file5.jpg"), SecurityLevel.MEDIUM, Resource.ResourceType.IMAGE));
+            Paths.get(DATA_DIR, "file5.jpg"), SecurityLevel.SPECIAL_IMPORTANCE, Resource.ResourceType.IMAGE));
     }
 
     public static SecurityLevel getUserLevel(String username) {
-        return userLevels.getOrDefault(username, SecurityLevel.LOW);
+        return userLevels.getOrDefault(username, SecurityLevel.NOT_SECRET);
     }
 
     public static boolean canAccessResource(String username, String resourceName) {
         SecurityLevel userLevel = getUserLevel(username);
         Resource resource = resources.get(resourceName);
         return resource != null && userLevel.canAccess(resource.getSecurityLevel());
+    }
+
+    public static boolean changeUserSecurityLevel(String username, SecurityLevel newLevel) {
+        // Перевіряємо довжину пароля для високих рівнів доступу
+        if (SecurityLevel.requiresLongPassword(newLevel)) {
+            String password = UserDatabase.getUserPassword(username);
+            if (password == null || password.length() <= 10) {
+                return false;
+            }
+        }
+        userLevels.put(username, newLevel);
+        return true;
+    }
+
+    public static boolean changeResourceSecurityLevel(String resourceName, SecurityLevel newLevel) {
+        Resource resource = resources.get(resourceName);
+        if (resource == null) {
+            return false;
+        }
+        resources.put(resourceName, new Resource(
+            resource.getName(),
+            resource.getPath(),
+            newLevel,
+            resource.getType()
+        ));
+        return true;
     }
 
     public static void viewResource(String username, String resourceName, Component parent) {

@@ -1,10 +1,11 @@
 package edu.kai.stud;
 
 public enum SecurityLevel {
-    LOW(1, "Низький"),
-    MEDIUM(2, "Середній"),
-    HIGH(3, "Високий"),
-    ADMIN(4, "Адміністратор");
+    NOT_SECRET(1, "Не таємно"),
+    FOR_SERVICE_USE(2, "Для службового користування"),
+    SECRET(3, "Таємно"),
+    TOP_SECRET(4, "Цілком таємно"),
+    SPECIAL_IMPORTANCE(5, "Особливої важливості");
 
     private final int level;
     private final String description;
@@ -24,5 +25,9 @@ public enum SecurityLevel {
 
     public boolean canAccess(SecurityLevel resourceLevel) {
         return this.level >= resourceLevel.level;
+    }
+
+    public static boolean requiresLongPassword(SecurityLevel level) {
+        return level == TOP_SECRET || level == SPECIAL_IMPORTANCE;
     }
 } 

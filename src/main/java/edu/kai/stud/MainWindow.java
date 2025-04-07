@@ -13,7 +13,7 @@ public class MainWindow extends JFrame {
         this.currentUser = username;
 
         setTitle("TBD_Boyko - Мандатне розмежування доступу");
-        setSize(600, 400);
+        setSize(800, 400);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -57,13 +57,16 @@ public class MainWindow extends JFrame {
         // Меню адміністрування
         JMenu adminMenu = new JMenu("Адміністрування");
         JMenuItem addUserItem = new JMenuItem("Додати користувача");
+        JMenuItem changeUserLevelItem = new JMenuItem("Змінити рівень доступу користувача");
         JMenuItem authorInfo = new JMenuItem("Про автора");
 
         addUserItem.addActionListener(e -> new AddUserWindow());
+        changeUserLevelItem.addActionListener(e -> new ChangeSecurityLevelWindow(currentUser));
         authorInfo.addActionListener(e -> 
             JOptionPane.showMessageDialog(this, "Розробила: Boyko, група БІ-125-21-4-БІ"));
 
         adminMenu.add(addUserItem);
+        adminMenu.add(changeUserLevelItem);
         adminMenu.add(authorInfo);
 
         // Додавання меню до панелі меню
@@ -77,10 +80,11 @@ public class MainWindow extends JFrame {
         resourcesPanel.removeAll();
         
         // Заголовок таблиці
-        JPanel headerPanel = new JPanel(new GridLayout(1, 3));
+        JPanel headerPanel = new JPanel(new GridLayout(1, 4));
         headerPanel.add(new JLabel("Назва файлу"));
         headerPanel.add(new JLabel("Тип"));
         headerPanel.add(new JLabel("Рівень доступу"));
+        headerPanel.add(new JLabel("Дії"));
         resourcesPanel.add(headerPanel);
 
         // Додавання ресурсів
@@ -92,16 +96,25 @@ public class MainWindow extends JFrame {
             resourcePanel.add(new JLabel(getResourceTypeDescription(resource.getType())));
             resourcePanel.add(new JLabel(resource.getSecurityLevel().getDescription()));
             
+            JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            
             JButton accessButton = new JButton("Відкрити");
             accessButton.addActionListener(e -> 
                 SecurityManager.viewResource(currentUser, resource.getName(), this));
+            
+            JButton changeLevelButton = new JButton("Змінити рівень");
+            changeLevelButton.addActionListener(e -> 
+                new ChangeResourceSecurityWindow(resource.getName()));
             
             if (!SecurityManager.canAccessResource(currentUser, resource.getName())) {
                 accessButton.setEnabled(false);
                 accessButton.setToolTipText("Недостатньо прав для доступу");
             }
             
-            resourcePanel.add(accessButton);
+            buttonsPanel.add(accessButton);
+            buttonsPanel.add(changeLevelButton);
+            resourcePanel.add(buttonsPanel);
+            
             resourcesPanel.add(resourcePanel);
         }
 
