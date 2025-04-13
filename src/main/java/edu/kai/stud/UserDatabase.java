@@ -41,6 +41,23 @@ public class UserDatabase {
         }
     }
 
+    public static boolean userExists(String username) {
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "SELECT 1 FROM users WHERE username = ?")) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static void addUser(String username, String password) {
+        addUser(username, password, "Слабкий");
+    }
+
     public static void addUser(String username, String password, String passwordStrength) {
         try (Connection conn = DriverManager.getConnection(DB_URL);
              PreparedStatement pstmt = conn.prepareStatement(
