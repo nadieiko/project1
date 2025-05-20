@@ -177,51 +177,37 @@ public class AddUserWindow extends JFrame {
         // Додаємо користувача в залежності від типу розмежування
         if (SecurityManager.getCurrentAccessType() == AccessType.MANDATORY) {
             SecurityLevel level = (SecurityLevel) securityLevelComboBox.getSelectedItem();
-            SecurityManager.addNewUser(username, level);
-        } else if (SecurityManager.getCurrentAccessType() == AccessType.ROLE_BASED) {
             Role role = (Role) roleComboBox.getSelectedItem();
-            SecurityManager.addNewUser(username, role);
+            UserDatabase.addUser(username, password, isStrong ? "Складний" : "Слабкий");
+            SecurityManager.addNewUser(username, level);
         } else {
-            SecurityManager.addNewUser(username);
-            
-            // Для дискреційного типу встановлюємо права доступу
-            if (SecurityManager.getCurrentAccessType() == AccessType.DISCRETIONARY) {
-                for (Map.Entry<String, Map<DiscretionaryAccess.Permission, JCheckBox>> entry : 
-                     resourcePermissions.entrySet()) {
-                    String resourceName = entry.getKey();
-                    EnumSet<DiscretionaryAccess.Permission> permissions = EnumSet.noneOf(DiscretionaryAccess.Permission.class);
-                    
-                    for (Map.Entry<DiscretionaryAccess.Permission, JCheckBox> permEntry : 
-                         entry.getValue().entrySet()) {
-                        if (permEntry.getValue().isSelected()) {
-                            permissions.add(permEntry.getKey());
-                        }
-                    }
-                    
-                    String timeRestriction = resourceTimeRestrictions.get(resourceName).getText().trim();
-                    if (!timeRestriction.isEmpty() && 
-                        !timeRestriction.matches("\\d{2}:\\d{2}-\\d{2}:\\d{2}")) {
-                        JOptionPane.showMessageDialog(this,
-                            "Неправильний формат часового обмеження для " + resourceName + 
-                            "\nВикористовуйте формат HH:mm-HH:mm",
-                            "Помилка",
-                            JOptionPane.ERROR_MESSAGE);
-                        return;
-                    }
-                    
-                    SecurityManager.updateDiscretionaryAccess(username, resourceName, 
-                        permissions, timeRestriction.isEmpty() ? null : timeRestriction);
-                }
+            UserDatabase.addUser(username, password, isStrong ? "Складний" : "Слабкий");
+        }
+
+        // Після успішного створення користувача, пропонуємо зареєструвати обличчя
+        Integer userId = UserDatabase.getUserIdByUsername(username);
+        int response = JOptionPane.showConfirmDialog(this,
+            "Користувача успішно створено. Бажаєте зареєструвати обличчя для біометричної автентифікації?",
+            "Реєстрація обличчя",
+            JOptionPane.YES_NO_OPTION);
+
+        if (response == JOptionPane.YES_OPTION && userId != null) {
+            try {
+                FaceAuthenticator faceAuthenticator = new FaceAuthenticator();
+                faceAuthenticator.startCapture(true, String.valueOf(userId), () -> {
+                    JOptionPane.showMessageDialog(this,
+                        "Обличчя успішно зареєстровано!",
+                        "Успіх",
+                        JOptionPane.INFORMATION_MESSAGE);
+                });
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this,
+                    "Помилка при реєстрації обличчя: " + e.getMessage(),
+                    "Помилка",
+                    JOptionPane.ERROR_MESSAGE);
             }
         }
 
-        // Додаємо користувача в базу даних
-        UserDatabase.addUser(username, password, isStrong ? "Складний" : "Слабкий");
-
-        JOptionPane.showMessageDialog(this,
-            "Користувача успішно додано",
-            "Успіх",
-            JOptionPane.INFORMATION_MESSAGE);
-        dispose();
+        this.dispose();
     }
 }

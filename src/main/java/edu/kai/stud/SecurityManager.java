@@ -13,14 +13,26 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class SecurityManager {
-    private static final Map<String, SecurityLevel> userLevels = new HashMap<>();
+    private static SecurityManager instance;
+    private static AccessType currentAccessType;
     private static final Map<String, Resource> resources = new HashMap<>();
+    private static final Map<String, SecurityLevel> userLevels = new HashMap<>();
     private static final Map<String, Map<String, DiscretionaryAccess>> discretionaryAccess = new HashMap<>();
     private static final Map<String, Map<String, RoleBasedAccess>> roleBasedAccess = new HashMap<>();
     private static final Map<String, Role> userRoles = new HashMap<>();
     private static final String DATA_DIR = "C:\\Users\\nadey\\TBD_Boyko\\Data";
-    private static AccessType currentAccessType = null;
     private static boolean isWriteOperation = false;
+
+    private SecurityManager() {
+        // Приватний конструктор для патерну Singleton
+    }
+
+    public static SecurityManager getInstance() {
+        if (instance == null) {
+            instance = new SecurityManager();
+        }
+        return instance;
+    }
 
     static {
         // Ініціалізація рівнів доступу користувачів
@@ -412,5 +424,9 @@ public class SecurityManager {
 
     private static void setWriteOperation(boolean isWrite) {
         isWriteOperation = isWrite;
+    }
+
+    public boolean validatePassword(String username, String password) {
+        return UserDatabase.authenticateUser(username, password);
     }
 } 

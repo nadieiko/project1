@@ -90,15 +90,23 @@ public class MainWindow extends JFrame {
         JMenu adminMenu = new JMenu("Адміністрування");
         JMenuItem addUserItem = new JMenuItem("Додати користувача");
         JMenuItem changeUserLevelItem = new JMenuItem("Змінити рівень доступу користувача");
+        JMenuItem passwordCrackerItem = new JMenuItem("Зламати пароль");
         JMenuItem authorInfo = new JMenuItem("Про автора");
 
         addUserItem.addActionListener(e -> new AddUserWindow());
         changeUserLevelItem.addActionListener(e -> new ChangeSecurityLevelWindow(currentUser));
+        passwordCrackerItem.addActionListener(e -> {
+            PasswordCrackerWindow crackerWindow = new PasswordCrackerWindow(SecurityManager.getInstance());
+            crackerWindow.setLocationRelativeTo(this);
+            crackerWindow.setVisible(true);
+        });
         authorInfo.addActionListener(e ->
                 JOptionPane.showMessageDialog(this, "Розробила: Boyko, група БІ-125-21-4-БІ"));
 
         adminMenu.add(addUserItem);
         adminMenu.add(changeUserLevelItem);
+        adminMenu.add(passwordCrackerItem);
+        adminMenu.addSeparator();
         adminMenu.add(authorInfo);
 
         // Додавання меню до панелі меню

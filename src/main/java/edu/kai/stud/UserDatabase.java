@@ -4,16 +4,33 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 public class UserDatabase {
     private static final String DB_URL = "jdbc:sqlite:users.db";
+    private static final Map<String, String> passwordCache = new ConcurrentHashMap<>();
+    private static Connection permanentConnection;
+    private static PreparedStatement cachedAuthStatement;
+
+    static {
+        try {
+            Class.forName("org.sqlite.JDBC");
+            permanentConnection = DriverManager.getConnection(DB_URL);
+            initializeDatabase();
+            cachedAuthStatement = permanentConnection.prepareStatement(
+                "SELECT password FROM users WHERE username = ?");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     public static void initializeDatabase() {
         try {
-            Class.forName("org.sqlite.JDBC");
-            try (Connection conn = DriverManager.getConnection(DB_URL);
-                 Statement stmt = conn.createStatement()) {
-
+            try (Statement stmt = permanentConnection.createStatement()) {
+                // Починаємо транзакцію
+                permanentConnection.setAutoCommit(false);
+                
                 String createUsersTableSQL = "CREATE TABLE IF NOT EXISTS users (" +
                         "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                         "username TEXT UNIQUE, " +
@@ -29,14 +46,54 @@ public class UserDatabase {
                         "FOREIGN KEY (user_id) REFERENCES users(id))";
                 stmt.execute(createPasswordHistoryTableSQL);
 
-                // Додавання тестових користувачів
-                addUser("Boyko_1", "default", "Слабкий");
-                addUser("Boyko_2", "default", "Слабкий");
-                addUser("Boyko_3", "default", "Слабкий");
-                addUser("Boyko_4", "default", "Слабкий");
-                addUser("Boyko_5", "default", "Слабкий");
+                // Створюємо індекс для оптимізації пошуку
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)");
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_password_history_user_id ON password_history(user_id)");
+
+                // Перевіряємо, чи таблиця користувачів порожня
+                ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users");
+                if (rs.next() && rs.getInt(1) == 0) {
+                    // Додаємо тестових користувачів тільки якщо таблиця порожня
+                    try (PreparedStatement pstmt = permanentConnection.prepareStatement(
+                            "INSERT INTO users (username, password, is_strong_password) VALUES (?, ?, ?)")) {
+                        
+                        String[][] testUsers = {
+                            {"Boyko_1", "default", "Слабкий"},
+                            {"Boyko_2", "default", "Слабкий"},
+                            {"Boyko_3", "default", "Слабкий"},
+                            {"Boyko_4", "default", "Слабкий"},
+                            {"Boyko_5", "default", "Слабкий"}
+                        };
+
+                        for (String[] user : testUsers) {
+                            pstmt.setString(1, user[0]);
+                            pstmt.setString(2, user[1]);
+                            pstmt.setString(3, user[2]);
+                            pstmt.executeUpdate();
+                            
+                            // Додаємо пароль в історію
+                            try (PreparedStatement histStmt = permanentConnection.prepareStatement(
+                                    "INSERT INTO password_history (user_id, password) " +
+                                    "SELECT id, ? FROM users WHERE username = ?")) {
+                                histStmt.setString(1, user[1]);
+                                histStmt.setString(2, user[0]);
+                                histStmt.executeUpdate();
+                            }
+                        }
+                    }
+                }
+                
+                // Завершуємо транзакцію
+                permanentConnection.commit();
+                permanentConnection.setAutoCommit(true);
             }
         } catch (Exception e) {
+            try {
+                permanentConnection.rollback();
+                permanentConnection.setAutoCommit(true);
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
             e.printStackTrace();
         }
     }
@@ -132,6 +189,8 @@ public class UserDatabase {
             if (updatedRows > 0) {
                 // Додаємо новий пароль в історію
                 addPasswordToHistory(username, newPassword);
+                // Очищаємо кеш для цього користувача
+                passwordCache.remove(username);
                 return true;
             }
             return false;
@@ -142,18 +201,39 @@ public class UserDatabase {
         }
     }
 
-    public static boolean authenticateUser(String username, String password) {
-        try (Connection conn = DriverManager.getConnection(DB_URL);
-             PreparedStatement pstmt = conn.prepareStatement(
-                     "SELECT * FROM users WHERE username = ? AND password = ?")) {
-            pstmt.setString(1, username);
-            pstmt.setString(2, password);
-            ResultSet rs = pstmt.executeQuery();
-            return rs.next();
+    public static synchronized boolean authenticateUser(String username, String password) {
+        try {
+            // Спочатку перевіряємо кеш
+            String cachedPassword = passwordCache.get(username);
+            if (cachedPassword != null) {
+                return cachedPassword.equals(password);
+            }
+
+            // Якщо в кеші немає, перевіряємо в базі
+            cachedAuthStatement.setString(1, username);
+            try (ResultSet rs = cachedAuthStatement.executeQuery()) {
+                if (rs.next()) {
+                    String storedPassword = rs.getString("password");
+                    if (storedPassword != null) {
+                        // Зберігаємо в кеш
+                        passwordCache.put(username, storedPassword);
+                        return storedPassword.equals(password);
+                    }
+                }
+            }
+            return false;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
+    }
+
+    public static void clearPasswordCache() {
+        passwordCache.clear();
+    }
+
+    public static void clearUserPasswordCache(String username) {
+        passwordCache.remove(username);
     }
 
     public static String getPasswordStrength(String username) {
@@ -191,6 +271,36 @@ public class UserDatabase {
         } catch (SQLException e) {
             e.printStackTrace();
             return null;
+        }
+    }
+
+    public static Integer getUserIdByUsername(String username) {
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "SELECT id FROM users WHERE username = ?")) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+            return null;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            if (cachedAuthStatement != null) {
+                cachedAuthStatement.close();
+            }
+            if (permanentConnection != null) {
+                permanentConnection.close();
+            }
+        } finally {
+            super.finalize();
         }
     }
 }
